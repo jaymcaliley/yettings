@@ -94,7 +94,7 @@ module Yettings
     end
 
     def decrypt_string(public_string)
-      private_key.private_decrypt(public_string).to_s
+      private_key.private_decrypt(public_string).to_s.force_encoding("UTF-8")
     end
 
     def encrypt_string(private_string)
