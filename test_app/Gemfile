@@ -4,3 +4,6 @@ gem 'rails', '3.0.5'
 gem 'sqlite3'
 gem 'rspec-rails'
 gem 'yettings', :path=>"#{File.dirname(__FILE__)}/../"
+gem 'pry'
+gem 'pry-nav'
+gem 'pry-stack_explorer'
