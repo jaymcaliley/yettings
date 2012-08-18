@@ -6,5 +6,8 @@ module Yettings
     config.before_configuration do
       Yettings.setup!
     end
+    rake_tasks do
+      load File.expand_path('../../tasks/yettings.rake', __FILE__)
+    end
   end
 end
