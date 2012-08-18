@@ -8,7 +8,9 @@ module Yettings
   class UndefinedYetting < StandardError; end
   class << self
     def setup!
-      find_yml_files.each do |yml_file|
+      encrypt_files!
+      decrypt_files!
+      (find_yml_files + find_private_yml_files).each do |yml_file|
         yml = File.read yml_file
         create_yetting_class yml, klass_name(yml_file)
       end
@@ -20,7 +22,7 @@ module Yettings
     end
 
     def create_yetting_class(yml, klass_name)
-      hash = build_hash yml, :apply_defaults => true
+      hash = build_hash yml
       klass = Object.const_set klass_name, Class.new
       hash.each do |key,value|
         klass.define_singleton_method(key) { value }
@@ -32,17 +34,12 @@ module Yettings
       end
     end
 
-    def build_hash(yml, opts = {})
-      if opts[:erb]
-        yml = ERB.new(yml).result
-      end
+    def build_hash(yml)
+      yml = ERB.new(yml).result
       full_hash = yml.present? ? YAML.load(yml).to_hash : {}
-      if opts[:apply_defaults]
-        defaults = full_hash.delete(:defaults) || {}
-        defaults.merge(full_hash[Rails.env] || {})
-      else
-        full_hash
-      end
+      defaults = full_hash.delete('defaults') || {}
+      env_hash = full_hash[Rails.env] || {}
+      defaults.merge env_hash
     end
 
     def root
@@ -66,12 +63,12 @@ module Yettings
     end
 
     def decrypt_yml(yml)
-      hash = build_hash(yml)
+      hash = yml.present? ? YAML.load(yml).to_hash : {}
       decrypt_hash(hash).to_yaml
     end
 
     def encrypt_yml(yml)
-      hash = build_hash(yml)
+      hash = yml.present? ? YAML.load(yml).to_hash : {}
       encrypt_hash(hash).to_yaml
     end
 
@@ -90,40 +87,42 @@ module Yettings
     end
 
     def decrypt(obj)
-      obj.is_a? Hash ? decrypt_hash(obj) : decrypt_string(obj)
+      obj.is_a?(Hash) ? decrypt_hash(obj) : decrypt_string(obj)
     end
 
     def encrypt(obj)
-      obj.is_a? Hash ? encrypt_hash(obj) : encrypt_string(obj)
+      obj.is_a?(Hash) ? encrypt_hash(obj) : encrypt_string(obj)
     end
 
     def decrypt_string(public_string)
-      private_key.private_decrypt public_string
+      private_key.private_decrypt(public_string).to_s
     end
 
     def encrypt_string(private_string)
-      public_key.public_encrypt private_string
+      public_key.public_encrypt(private_string).to_s
     end
 
     def encrypt_file(private_file)
-      public_yml = encrypt_yml File.read(private_file)
       public_file = public_path(private_file)
-      File.open(public_file, 'w') { |f| f.puts private_yml }
+      public_yml = encrypt_yml File.read(private_file)
+      return unless check_overwrite(public_file, private_file, public_yml)
+      File.open(public_file, 'w') { |f| f.write public_yml }
     end
 
-    def encrypt_files
+    def encrypt_files!
       find_private_yml_files.each do |yml_file|
         encrypt_file yml_file
       end
     end
 
     def decrypt_file(public_file)
-      private_file = decrypt_yml File.read(public_file)
       private_file = private_path(public_file)
-      File.open(private_file, 'w') { |f| f.puts private_yml }
+      private_yml = decrypt_yml File.read(public_file)
+      return unless check_overwrite(private_file, public_file, private_yml)
+      File.open(private_file, 'w') { |f| f.write private_yml }
     end
 
-    def decrypt_files
+    def decrypt_files!
       find_public_yml_files.each do |yml_file|
         decrypt_file yml_file
       end
@@ -137,6 +136,17 @@ module Yettings
       path.gsub(/^#{private_root}/, root) + '.pub'
     end
 
+    def check_overwrite(dest, source, content)
+      return true if !File.exists?(dest)
+      return false if File.read(dest) == content
+      if File.mtime(source) > File.mtime(dest)
+        STDERR.puts "WARNING: overwriting #{dest} with contents of #{source}"
+        true
+      else
+        false
+      end
+    end
+
     def public_key
       @public_key ||= load_key :public
     end
@@ -146,6 +156,7 @@ module Yettings
     end
 
     def load_key(type)
+      key_file = key_path(type)
       message = "No key found in #{key_file}"
       raise RuntimeError, message unless File.exists?(key_file)
       key = OpenSSL::PKey::RSA.new File.read(key_file)
@@ -154,7 +165,7 @@ module Yettings
       key
     end
 
-    def key_file
+    def key_path(type)
       ENV["YETTINGS_#{type.to_s.upcase}_KEY"] || "#{root}/.#{type}_key"
     end
 
