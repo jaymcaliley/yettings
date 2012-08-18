@@ -11,19 +11,13 @@ module Yettings
       encrypt_files!
       decrypt_files!
       (find_yml_files + find_private_yml_files).each do |yml_file|
-        yml = File.read yml_file
-        create_yetting_class yml, klass_name(yml_file)
+        create_yetting_class yml_file
       end
     end
 
-    def klass_name(yml_file)
-      File.basename(yml_file).gsub(/\.pub$/,"").gsub(/\.yml$/,"")
-      .camelize
-    end
-
-    def create_yetting_class(yml, klass_name)
-      hash = build_hash yml
-      klass = Object.const_set klass_name, Class.new
+    def create_yetting_class(yml_file)
+      hash = build_hash File.read(yml_file)
+      klass = Object.const_set klass_name(yml_file), Class.new
       hash.each do |key,value|
         klass.define_singleton_method(key) { value }
       end
@@ -32,6 +26,11 @@ module Yettings
           raise UndefinedYetting, "#{method_id} is not defined in #{self.to_s}"
         end
       end
+    end
+
+    def klass_name(yml_file)
+      basename = File.basename(yml_file)
+      basename.gsub(/\.pub$/,"").gsub(/\.yml$/,"").camelize + "Yetting"
     end
 
     def build_hash(yml)
