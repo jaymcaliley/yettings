@@ -5,7 +5,8 @@ YETTINGS_PATH = "#{File.dirname(__FILE__)}/yettings"
 require "#{YETTINGS_PATH}/railtie.rb"
 
 module Yettings
-  class UndefinedYetting < StandardError; end
+  class UndefinedYettingError < StandardError; end
+  class NameConflictError < StandardError; end
   class << self
     def setup!
       encrypt_files!
@@ -16,33 +17,45 @@ module Yettings
     end
 
     def create_yetting_class(yml_file)
-      hash = build_hash File.read(yml_file)
+      hash = load_yml_file yml_file
       klass = Object.const_set klass_name(yml_file), Class.new
       hash.each do |key,value|
         klass.define_singleton_method(key) { value }
       end
       klass.class_eval do
         def self.method_missing(method_id, *args)
-          raise UndefinedYetting, "#{method_id} is not defined in #{self.to_s}"
+          raise UndefinedYettingError, "#{method_id} is not defined in #{self}"
         end
       end
     end
 
     def klass_name(yml_file)
       basename = File.basename(yml_file)
-      basename.gsub(/\.pub$/,"").gsub(/\.yml$/,"").camelize + "Yetting"
+      if basename == "yetting.yml"
+        name = "Yetting"
+      else
+        name = basename.gsub(/\.pub$/,"").gsub(/\.yml$/,"").camelize + "Yetting"
+      end
+      if Object.const_defined?(name)
+        raise NameConflictError, "#{name} is already defined"
+      end
+      name
     end
 
-    def build_hash(yml)
-      yml = ERB.new(yml).result
+    def load_yml_file(yml_file)
+      yml = ERB.new(File.read yml_file).result
       full_hash = yml.present? ? YAML.load(yml).to_hash : {}
       defaults = full_hash.delete('defaults') || {}
       env_hash = full_hash[Rails.env] || {}
       defaults.merge env_hash
     end
 
+    def rails_config
+      "#{Rails.root}/config"
+    end
+
     def root
-      "#{Rails.root.to_s}/config/yettings"
+      "#{rails_config}/yettings"
     end
 
     def private_root
@@ -50,7 +63,7 @@ module Yettings
     end
 
     def find_yml_files
-      Dir.glob("#{root}/../yetting.yml") + Dir.glob("#{root}/**/*.yml")
+      Dir.glob("#{rails_config}/yetting.yml") + Dir.glob("#{root}/**/*.yml")
     end
 
     def find_public_yml_files
