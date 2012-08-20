@@ -3,6 +3,7 @@ require 'erb'
 require 'openssl'
 YETTINGS_PATH = "#{File.dirname(__FILE__)}/yettings"
 require "#{YETTINGS_PATH}/railtie.rb"
+require "#{YETTINGS_PATH}/base.rb"
 
 module Yettings
   class UndefinedYettingError < StandardError; end
@@ -17,16 +18,9 @@ module Yettings
     end
 
     def create_yetting_class(yml_file)
-      hash = load_yml_file yml_file
-      klass = Object.const_set klass_name(yml_file), Class.new
-      hash.each do |key,value|
-        klass.define_singleton_method(key) { value }
-      end
-      klass.class_eval do
-        def self.method_missing(method_id, *args)
-          raise UndefinedYettingError, "#{method_id} is not defined in #{self}"
-        end
-      end
+      name = klass_name(yml_file)
+      klass = Object.const_set klass_name(yml_file), Class.new(Yettings::Base)
+      klass.load_yml_erb File.read(yml_file)
     end
 
     def klass_name(yml_file)
@@ -36,18 +30,12 @@ module Yettings
       else
         name = basename.gsub(/\.pub$/,"").gsub(/\.yml$/,"").camelize + "Yetting"
       end
-      if Object.const_defined?(name)
+      return name unless Object.const_defined?(name)
+      if name.constantize.ancestors.include? Yettings::Base
+        Object.module_eval { remove_const name }.to_s
+      else
         raise NameConflictError, "#{name} is already defined"
       end
-      name
-    end
-
-    def load_yml_file(yml_file)
-      yml = ERB.new(File.read yml_file).result
-      full_hash = yml.present? ? YAML.load(yml).to_hash : {}
-      defaults = full_hash.delete('defaults') || {}
-      env_hash = full_hash[Rails.env] || {}
-      defaults.merge env_hash
     end
 
     def rails_config
@@ -107,7 +95,11 @@ module Yettings
     end
 
     def decrypt_string(public_string)
-      private_key.private_decrypt(public_string).to_s.force_encoding("UTF-8")
+      if private_key.present?
+        private_key.private_decrypt(public_string).to_s.force_encoding("UTF-8")
+      else
+        "access denied (no private key found)"
+      end
     end
 
     def encrypt_string(private_string)
@@ -117,6 +109,7 @@ module Yettings
     def encrypt_file(private_file)
       public_file = public_path(private_file)
       public_yml = encrypt_yml File.read(private_file)
+      return if private_key.nil? # Don't overwrite encrypted file without key
       return unless check_overwrite(public_file, private_file, public_yml)
       File.open(public_file, 'w') { |f| f.write public_yml }
     end
@@ -149,7 +142,10 @@ module Yettings
     end
 
     def check_overwrite(dest, source, content)
-      return true if !File.exists?(dest)
+      unless File.exists?(dest)
+        STDERR.puts "WARNING: creating #{dest} with contents of #{source}"
+        return true
+      end
       return false if File.read(dest) == content
       if File.mtime(source) > File.mtime(dest)
         STDERR.puts "WARNING: overwriting #{dest} with contents of #{source}"
@@ -169,12 +165,12 @@ module Yettings
 
     def load_key(type)
       key_file = key_path(type)
-      message = "No key found in #{key_file}"
-      raise RuntimeError, message unless File.exists?(key_file)
-      key = OpenSSL::PKey::RSA.new File.read(key_file)
-      message = "Key #{key_file} is not a #{type} key"
-      raise RuntimeError, message unless key.send "#{type}?"
-      key
+      if File.exists?(key_file)
+        key = OpenSSL::PKey::RSA.new File.read(key_file)
+        message = "Key #{key_file} is not a #{type} key"
+        raise RuntimeError, message unless key.send "#{type}?"
+        key
+      end
     end
 
     def key_path(type)
@@ -184,7 +180,10 @@ module Yettings
     def gen_keys
       key = OpenSSL::PKey::RSA.new 2048
 
-      private_path = "#{root}/.private_key"
+      private_path = "#{root}/.private"
+      FileUtils.mkpath private_path
+
+      private_file = "#{root}/.private_key"
       File.open(private_file, 'w') { |f| f.write key.to_pem }
 
       public_file = "#{root}/.public_key"

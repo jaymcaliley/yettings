@@ -26,6 +26,7 @@ Gem::Specification.new do |s|
     "VERSION",
     "lib/tasks/yettings.rake",
     "lib/yettings.rb",
+    "lib/yettings/base.rb",
     "lib/yettings/railtie.rb",
     "yettings.gemspec"
   ]
