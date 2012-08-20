@@ -144,6 +144,7 @@ module Yettings
     def check_overwrite(dest, source, content)
       unless File.exists?(dest)
         STDERR.puts "WARNING: creating #{dest} with contents of #{source}"
+        FileUtils.mkpath File.dirname(dest)
         return true
       end
       return false if File.read(dest) == content
