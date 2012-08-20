@@ -147,7 +147,7 @@ Check this into git, then edit your private file again:
   # config/yettings/.private/secret.yml
   defaults:
     guilty_pleasure: singing into hairbrush
-    specifically: '"Only in My Dreams"' by Debbie Gibson
+    specifically: '"Only in My Dreams" by Debbie Gibson'
 
 Next time you run rails, your public file will be appended to, and you'll see
 which key was updated when you commit to git again. This will help you if you
