@@ -87,11 +87,11 @@ module Yettings
     end
 
     def decrypt(obj)
-      obj.is_a?(Hash) ? decrypt_hash(obj) : decrypt_string(obj)
+      obj.is_a?(Hash) ? decrypt_hash(obj) : decrypt_string(obj.to_s)
     end
 
     def encrypt(obj)
-      obj.is_a?(Hash) ? encrypt_hash(obj) : encrypt_string(obj)
+      obj.is_a?(Hash) ? encrypt_hash(obj) : encrypt_string(obj.to_s)
     end
 
     def decrypt_string(public_string)
