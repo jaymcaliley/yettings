@@ -63,6 +63,22 @@ The file must contain each environment that you will use in your Rails app.  Her
 In the above example, you can define the key/value pair using strings, numbers, erb code, or arrays.  Notice that the "api_key" in the development 
 environment will override the "api_key" from defaults.
 
+
+===Accessing the values in your Rails app
+
+You simply call the Yetting class or the namespaced class and the key as a class method.  For namespaced yml files, Yettings will convert the filename in 
+/your_rails_app/config/yettings/ to a class name and append Yetting.  So if you have main.yml, then it will use MainYetting as the class name.  
+Then you can call the key that you put in the YAML as a class method.  Here are 2 examples:
+
+  #/your_rails_app/config/yetting.yml in production
+  Yetting.some_number #=> 999
+  Yetting.api_key #=> "asdf12345lkj"
+
+  #/your_rails_app/config/yettings/main.yml
+  MainYetting.some_number #=> 999
+  MainYetting.some_array #=> ["element1","element2"]
+
+
 ===Default settings
 The above YAML content explicitly specifies settings for each environment using
 YAML splats. In case you'd rather not write all those out, settings in the
@@ -79,20 +95,6 @@ could be written as
 
   development:
     api_key: api key for dev
-
-===Accessing the values in your Rails app
-
-You simply call the Yetting class or the namespaced class and the key as a class method.  For namespaced yml files, Yettings will convert the filename in 
-/your_rails_app/config/yettings/ to a class name and append Yetting.  So if you have main.yml, then it will use MainYetting as the class name.  
-Then you can call the key that you put in the YAML as a class method.  Here are 2 examples:
-
-  #/your_rails_app/config/yetting.yml in production
-  Yetting.some_number #=> 999
-  Yetting.api_key #=> "asdf12345lkj"
-
-  #/your_rails_app/config/yettings/main.yml
-  MainYetting.some_number #=> 999
-  MainYetting.some_array #=> ["element1","element2"]
 
 
 == Encryption
